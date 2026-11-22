@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>ASCEND</title>
+
+    <style>
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background-color: #101827;
+            color: white;
+            font-family: "Trebuchet MS", sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+        }
+
+        canvas {
+            display: block;
+            max-width: 95vw;
+            height: auto;
+            border-radius: 16px;
+            box-shadow: 0 15px 45px rgba(0, 0, 0, 0.35);
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Welcome to ASCEND City</h1>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js"></script>
+    </script>
+    <p>Your City starts here.</p>
+
+    <script>
+        const config = {
+            type: Phaser.AUTO,
+            width: 800,
+            height: 500,
+            backgroundColor: "#88cee0",
+            scene: {
+                create: create
+            }
+        };
+
+        const game = new Phaser.Game(config);
+
+        function create() {
+
+            // Game title
+            this.add.text(400, 40, "ASCEND", {
+                fontFamily: "Trebuchet MS, sans-serif",
+                fontSize: "42px",
+                fontStyle: "bold",
+                color: "#ffffff"
+            }).setOrigin(0.5, 0);
+
+            // Create drawing tool
+            const graphics = this.add.graphics();
+
+            // Draw the 3x3 grass island
+            for (let row = 0; row < 3; row++) {
+                for (let col = 0; col < 3; col++) {
+
+                    const x = 400 + (col - row) * 100;
+                    const y = 150 + (col + row) * 50;
+
+                    const grassColor = (row + col) % 2 === 0
+                        ? 0x79BC68
+                        : 0x86C978;
+
+                    drawGrassTile(graphics, x, y, grassColor);
+                }
+            }
+
+            // Draw first house
+            let studyHours = Number(localStorage.getItem("studyHours")) || 0;
+            let houseLevel = Number(localStorage.getItem("houseLevel")) || 1;
+
+            let studySeconds = 0;
+            let timerRunning = false;
+
+            const houseGraphics = this.add.graphics();
+
+            houseGraphics.setPosition(400, 265);
+
+            //restores house's saved size
+            const savedScale = 1 + (houseLevel - 1) * 0.15;
+            houseGraphics.setScale(savedScale);
+
+
+            drawHouse(houseGraphics, 0, 0, houseLevel);
+
+
+
+            const houseZone = this.add.zone(400, 225, 70, 90)
+                .setInteractive({ useHandCursor: true });
+
+            // Create the house information panel once
+            const houseInfo = this.add.text(
+                400, 420,
+                `House Level ${houseLevel} | ${studyHours}/ 10 Study Hours`,
+                {
+                    fontFamily: "Trebuchet MS",
+                    fontSize: "20px",
+                    color: "#ffffff",
+                    backgroundColor: "#243447",
+                    padding: { x: 15, y: 10 }
+                }
+            ).setOrigin(0.5).setVisible(false);
+            const studyButton = this.add.text(400, 460, "+1 Study Hour", {
+                fontFamily: "Trebuchet MS",
+                fontSize: "20px",
+                color: "#ffffff",
+                backgroundColor: "#287A59",
+                padding: { x: 20, y: 12 }
+            })
+                .setOrigin(0.5)
+                .setInteractive({ useHandCursor: true });
+
+            // Display study timer
+            const timerText = this.add.text(400, 350, "00:00", {
+                fontFamily: "Trebuchet MS",
+                fontSize: "24px",
+                color: "#ffffff",
+                backgroundColor: "#243447",
+                padding: { x: 15, y: 8 }
+            })
+                .setOrigin(0.5);
+
+            // Create Start/Pause button
+            const timerButton = this.add.text(400, 395, "Start Studying", {
+                fontFamily: "Trebuchet MS",
+                fontSize: "18px",
+                color: "#ffffff",
+                backgroundColor: "#287A59",
+                padding: { x: 15, y: 10 }
+            })
+                .setOrigin(0.5)
+                .setInteractive({ useHandCursor: true });
+
+            // Start or pause timer
+            timerButton.on("pointerdown", () => {
+
+                timerRunning = !timerRunning;
+
+                timerButton.setText(
+                    timerRunning ? "Pause Studying" : "Start Studying"
+                );
+
+            });
+
+            // Update timer every second
+            this.time.addEvent({
+                delay: 1000,
+                callback: () => {
+
+                    if (timerRunning) {
+                        studySeconds += 1;
+
+                        const minutes = Math.floor(studySeconds / 60);
+                        const seconds = studySeconds % 60;
+
+                        timerText.setText(
+                            `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`
+                        );
+                    }
+
+                },
+                loop: true
+            });
+
+            studyButton.on("pointerdown", () => {
+
+                studyHours += 1;
+
+                if (studyHours >= 10) {
+                    houseLevel += 1;
+                    studyHours = 0;
+
+                    //redraws house
+                    houseGraphics.clear();
+                    drawHouse(houseGraphics, 0, 0, houseLevel);
+
+                    //Animates house growth
+                    this.tweens.add({
+                        targets: houseGraphics,
+                        scaleX: 1 + (houseLevel - 1) * 0.15,
+                        scaleY: 1 + (houseLevel - 1) * 0.15,
+                        duration: 600,
+                        ease: "Back.easeOut"
+                    });
+                }
+
+                houseInfo.setText(
+                    `House Level ${houseLevel} | ${studyHours}/10 Study Hours`
+                );
+
+                localStorage.setItem("studyHours", studyHours);
+                localStorage.setItem("houseLevel", houseLevel);
+
+            });
+
+            // Toggle panel when house is clicked
+            houseZone.on("pointerdown", () => {
+
+                // Stop any previous animation
+                this.tweens.killTweensOf(houseInfo);
+
+                if (!houseInfo.visible) {
+
+                    // Make panel visible but transparent
+                    houseInfo.setAlpha(0);
+                    houseInfo.setVisible(true);
+
+                    // Fade in
+                    this.tweens.add({
+                        targets: houseInfo,
+                        alpha: 1,
+                        duration: 300,
+                        ease: "Power2"
+                    });
+
+                } else {
+
+                    // Fade out
+                    this.tweens.add({
+                        targets: houseInfo,
+                        alpha: 0,
+                        duration: 300,
+                        ease: "Power2",
+                        onComplete: () => {
+                            houseInfo.setVisible(false);
+                        }
+                    });
+
+                }
+            });
+
+        } // Closes create()
+
+        // Draw a 3D grass tile
+        function drawGrassTile(graphics, x, y, grassColor) {
+
+            // Top surface
+            graphics.fillStyle(grassColor, 1);
+            graphics.fillPoints([
+                { x: x, y: y - 50 },
+                { x: x + 100, y: y },
+                { x: x, y: y + 50 },
+                { x: x - 100, y: y }
+            ], true);
+
+            // Tile outline
+            graphics.lineStyle(1, 0x467D43, 1);
+            graphics.strokePoints([
+                { x: x, y: y - 50 },
+                { x: x + 100, y: y },
+                { x: x, y: y + 50 },
+                { x: x - 100, y: y }
+            ], true);
+
+            // Left side
+            graphics.fillStyle(0x568E49, 1);
+            graphics.fillPoints([
+                { x: x - 100, y: y },
+                { x: x, y: y + 50 },
+                { x: x, y: y + 70 },
+                { x: x - 100, y: y + 20 }
+            ], true);
+
+            // Right side
+            graphics.fillStyle(0x3E763E, 1);
+            graphics.fillPoints([
+                { x: x, y: y + 50 },
+                { x: x + 100, y: y },
+                { x: x + 100, y: y + 20 },
+                { x: x, y: y + 70 }
+            ], true);
+        }
+
+        // Draw first house
+        function drawHouse(graphics, x, y, level = 1) {
+            //choose roof colors based on house level
+            const leftRoofColor = level >= 2 ? 0x4287F5 : 0xC65B50;
+            const rightRoofColor = level >= 2 ? 0x2456A6 : 0x943F3B;
+            // Left wall
+            graphics.fillStyle(0xF2DFC0, 1);
+            graphics.fillPoints([
+                { x: x - 35, y: y - 55 },
+                { x: x, y: y - 35 },
+                { x: x, y: y + 5 },
+                { x: x - 35, y: y - 15 }
+            ], true);
+
+            // Right wall
+            graphics.fillStyle(0xD4B894, 1);
+            graphics.fillPoints([
+                { x: x, y: y - 35 },
+                { x: x + 35, y: y - 55 },
+                { x: x + 35, y: y - 15 },
+                { x: x, y: y + 5 }
+            ], true);
+
+
+            // Left roof slope
+            graphics.fillStyle(leftRoofColor, 1);
+            graphics.fillPoints([
+                { x: x, y: y - 90 },
+                { x: x - 40, y: y - 55 },
+                { x: x, y: y - 30 }
+            ], true);
+
+            // Right roof slope
+            graphics.fillStyle(rightRoofColor, 1);
+            graphics.fillPoints([
+                { x: x, y: y - 90 },
+                { x: x, y: y - 30 },
+                { x: x + 40, y: y - 55 }
+            ], true);
+
+            // Front door
+            graphics.fillStyle(0x795548, 1);
+
+            graphics.fillPoints([
+                { x: x - 23, y: y - 22 },
+                { x: x - 13, y: y - 16 },
+                { x: x - 13, y: y - 2.43 },
+                { x: x - 23, y: y - 8.14 }
+            ], true);
+
+            // Left wall window
+            graphics.fillStyle(0x8ED6F0, 1);
+
+            graphics.fillPoints([
+                { x: x - 33, y: y - 43 },
+                { x: x - 23, y: y - 37.29 },
+                { x: x - 23, y: y - 27.29 },
+                { x: x - 33, y: y - 33 }
+            ], true);
+
+            // Right wall window
+            graphics.fillStyle(0x65B8D6, 1);
+
+            graphics.fillPoints([
+                { x: x + 13, y: y - 27.57 },
+                { x: x + 23, y: y - 33.29 },
+                { x: x + 23, y: y - 23.29 },
+                { x: x + 13, y: y - 17.57 }
+            ], true);
+        }
+    </script>
+
+</body>
+
+</html>
